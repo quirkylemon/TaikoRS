@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::io::Read;
 
-const SIZE: f32 = 128.0;
+const SIZE: f32 = 96.0;
 
 //markers 
 #[derive(Component)]
