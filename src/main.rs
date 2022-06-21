@@ -49,7 +49,7 @@ struct SongPath {
 }
 
 struct Modifiers {
-    speed: f32
+    speed: f32,
 }
 
 
