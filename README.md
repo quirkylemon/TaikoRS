@@ -14,4 +14,8 @@
 
 I am new to programming so the code is probably weird and innfiecient if you see something you want to change for the better please do! also it would be nice if you could explain how and why it is better :)
 
+also I don't have github experience so please be patient if something doesnt work or is weird
+
+[random ideas on how it should work](https://docs.google.com/document/d/12wOqsNfpZ7JMxY0Q6h1AUVH8UFUX0rcy8iQJl-oIL-U/edit?usp=sharing)
+
 
