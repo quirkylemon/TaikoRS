@@ -10,5 +10,8 @@
 
 ## [Trello board](https://trello.com/b/BeKCdYNV/main)
 
+## Random stuff I don't know where to put
+
 I am new to programming so the code is probably weird and innfiecient if you see something you want to change for the better please do! also it would be nice if you could explain how and why it is better :)
+
 
