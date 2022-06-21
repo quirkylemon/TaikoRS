@@ -142,8 +142,10 @@ fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, 
             } 
         }
         invalid_notes = invalid_notes.into_iter().map(|i| i + 1).collect();
-        println!("{}", notes.notes.len());   
-        println!("{:?}", invalid_notes);
+        #[cfg(debug_assertions)] {
+            println!("{}", notes.notes.len());   
+            println!("{:?}", invalid_notes);
+        }
 
         fn expand(note: NoteOptimized) -> (Transform, NoteTypeEnum, String) {
             let _note_type = match (note.don_or_ka, note.size, note.type_of_note) {
@@ -211,9 +213,12 @@ fn update_notes(
     timer: Res<Time>, 
     window: Res<WindowDescriptor>
 ) {
+    
+    #[cfg(debug_assertions)] 
     println!("{}", query.is_empty());
+
     for (_note_type, ent, mut transform, mut visible) in query.iter_mut() {
-        transform.translation.x -= 500.0 * timer.delta_seconds() * 3.0 * modifiers.speed as f32;
+        transform.translation.x -= 100.0 * timer.delta_seconds() * modifiers.speed as f32;
         if transform.translation.x < -window.width / 2.0 {
             commands.entity(ent).despawn();
         } else if transform.translation.x > window.width + 200.0 {
@@ -225,8 +230,9 @@ fn update_notes(
 }
 
 fn print_notes(mut query: Query<(&mut Transform, &NoteTypeEnum), With<Note>>) {
-    for (transform, note_type) in query.iter_mut() {
-        println!("x: {}, type: {:?}", transform.translation.x, note_type)
+    for (_transform, _note_type) in query.iter_mut() {
+        #[cfg(debug_assertions)]
+        println!("x: {}, type: {:?}", _transform.translation.x, _note_type)
     }
 }
 
