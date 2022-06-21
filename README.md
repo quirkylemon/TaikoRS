@@ -8,4 +8,7 @@
 3. Move the executable from target/release to TaikoRS 
 4. you can now copy TaikoRS anywhere you want too
 
+## [Trello board](https://trello.com/b/BeKCdYNV/main)
+
 I am new to programming so the code is probably weird and innfiecient if you see something you want to change for the better please do! also it would be nice if you could explain how and why it is better :)
+
