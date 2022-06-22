@@ -4,6 +4,8 @@ use std::env;
 
 const SIZE: f32 = 96.0;
 
+const  NOTE_HEIGHT: u16 = 180;
+
 //markers 
 #[derive(Component)]
 struct Note;
@@ -51,6 +53,23 @@ struct SongPath {
 
 struct Modifiers {
     speed: f32,
+}
+
+#[derive(Debug)]
+enum EnumInput {
+    Don,
+    Ka,
+    None,
+}
+
+
+#[derive(Debug)]
+struct InputLeftSide {
+    input: EnumInput,
+}
+
+struct InputRightSide {
+    input: EnumInput,
 }
 
 fn load_args(mut path: ResMut<SongPath>) {
@@ -191,7 +210,7 @@ fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, 
                     .insert_bundle(
                         SpriteBundle {
                             texture: asset_server.load(&expand(notes.notes[i]).2),
-                            transform: Transform::from_xyz(notes.notes[i].x as f32 / 3.0 * SIZE, 0.0, 0.0),
+                            transform: Transform::from_xyz(notes.notes[i].x as f32 / 3.0 * SIZE, NOTE_HEIGHT as f32, 0.0),
                             visibility: Visibility { is_visible: true },
                             sprite: Sprite { 
                                 custom_size: match expand(notes.notes[i]).1 {
@@ -219,13 +238,15 @@ fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, 
 fn update_notes(
     mut commands: Commands,
     mut query: Query<(&NoteTypeEnum, Entity, &mut Transform, &mut Visibility), With<Note>>,
+    input_left: Res<InputLeftSide>,
+    input_right: Res<InputRightSide>,
     modifiers: Res<Modifiers>,
     timer: Res<Time>, 
     window: Res<WindowDescriptor>
 ) {
     
-    #[cfg(debug_assertions)] 
-    println!("{}", query.is_empty());
+    //#[cfg(debug_assertions)] 
+    //println!("{}", query.is_empty());
 
     for (_note_type, ent, mut transform, mut visible) in query.iter_mut() {
         transform.translation.x -= 100.0 * timer.delta_seconds() * modifiers.speed as f32;
@@ -239,16 +260,46 @@ fn update_notes(
     }
 }
 
+fn input_detection(
+    key_input: Res<Input<KeyCode>>, 
+    mut left_input: ResMut<InputLeftSide>, 
+    mut right_input: ResMut<InputRightSide>
+) {
+    if key_input.just_pressed(KeyCode::D) {
+        left_input.input = EnumInput::Ka;
+    } else if key_input.just_pressed(KeyCode::F) {
+        left_input.input = EnumInput::Don;
+    }  else {
+        left_input.input = EnumInput::None;
+    }
+
+    if key_input.just_pressed(KeyCode::K) {
+        right_input.input = EnumInput::Ka;
+    } else if key_input.just_pressed(KeyCode::J) {
+        right_input.input = EnumInput::Don;
+    } else {
+        right_input.input = EnumInput::None;
+    }
+    #[cfg(debug_assertions)]
+    println!("left: {:?}, right: {:?}", left_input.input, right_input.input);
+}
+
 fn print_notes(mut query: Query<(&mut Transform, &NoteTypeEnum), With<Note>>) {
     for (_transform, _note_type) in query.iter_mut() {
-        #[cfg(debug_assertions)]
-        println!("x: {}, type: {:?}", _transform.translation.x, _note_type)
+        //#[cfg(debug_assertions)]
+        //println!("x: {}, type: {:?}", _transform.translation.x, _note_type)
     }
 }
 
 
-fn setup_camera(mut commands: Commands) {
+fn setup_camera(mut commands: Commands, asset_server: Res<AssetServer>, window: Res<WindowDescriptor>) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(SpriteBundle {
+        texture: asset_server.load("HitZone.png"),
+        transform: Transform::from_xyz(-window.width / 3.0, NOTE_HEIGHT as f32, 0.0),
+        sprite: Sprite { custom_size: Some(Vec2::new(SIZE * 1.1, SIZE * 1.1)), ..default()},
+        ..default()
+    });
 }
 
 fn main() {
@@ -264,9 +315,12 @@ fn main() {
         .insert_resource(NotesInSong{notes: vec![]})
         .insert_resource(SongPath{path: "TaikoRS/Songs/.Debug/TestSong/".to_string()})
         .insert_resource(Modifiers{speed: 1.0})
+        .insert_resource(InputLeftSide{input: EnumInput::None})
+        .insert_resource(InputRightSide{input: EnumInput::None})
         .add_startup_system(setup_camera)
         .add_startup_system(load_args.before(load_notes_from_file))
         .add_startup_system(load_notes_from_file)
+        .add_system(input_detection.before(update_notes))
         .add_system(update_notes)
         .add_system(print_notes)
         .run();
