@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use std::io::Read;
+use std::env;
 
 const SIZE: f32 = 96.0;
 
@@ -52,7 +53,16 @@ struct Modifiers {
     speed: f32,
 }
 
-
+fn load_args(mut path: ResMut<SongPath>) {
+    for arg in env::args() {
+        match env::args().len() > 1 {
+            false => {},
+            true =>  path.path = arg,
+        }
+    }
+    #[cfg(debug_assertions)]
+    println!("{}", path.path);
+}
 
 fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, path: Res<SongPath>, asset_server: Res<AssetServer>) {
     fn read_file_to_string(path: &str) -> String {
@@ -255,6 +265,7 @@ fn main() {
         .insert_resource(SongPath{path: "TaikoRS/Songs/.Debug/TestSong/".to_string()})
         .insert_resource(Modifiers{speed: 1.0})
         .add_startup_system(setup_camera)
+        .add_startup_system(load_args.before(load_notes_from_file))
         .add_startup_system(load_notes_from_file)
         .add_system(update_notes)
         .add_system(print_notes)
