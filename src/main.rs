@@ -4,6 +4,8 @@ use std::env;
 
 const SIZE: f32 = 96.0;
 
+const TEST: u8 = 0;
+
 //markers 
 #[derive(Component)]
 struct Note;
