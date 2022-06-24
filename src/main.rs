@@ -47,10 +47,12 @@ struct NoteOptimized {
     length_of_special: u16,
 }
 
+// later when a GUI is added this will be set based on where you click
 struct SongPath {
     path: String,
 }
 
+// this will probably have more modifiers later 
 struct Modifiers {
     speed: f32,
 }
@@ -72,21 +74,22 @@ struct InputRightSide {
     input: EnumInput,
 }
 
-fn load_args(mut path: ResMut<SongPath>) {
-    for arg in env::args() {
-        match env::args().len() > 1 {
-            false => {},
-            true =>  path.path = arg,
-        }
-    }
-    #[cfg(debug_assertions)]
-    println!("{}", path.path);
-}
-
+// Writing this was one of the worst times I've has while coding, it isnt even good or complex code :(
 fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, path: Res<SongPath>, asset_server: Res<AssetServer>) {
-    fn read_file_to_string(path: &str) -> String {
+    
+    fn read_file_to_string(default_path: &str) -> String {
         let mut string = String::new();
-        let _path = path.to_owned() + "Map.txt";
+        // I have no idea why this works or what I changed to make it work
+        let mut _path = match std::env::args().len() {
+            0 => "no path".to_string(),
+            1 => "no path".to_string(),
+            _ => std::env::args().nth(1).unwrap(),
+        };
+        match _path.as_str() {
+            "no path" => {_path = default_path.to_string() + "/Map.txt"},
+            _ => {_path = _path + "/Map.txt"}
+            
+        }
         match std::fs::File::open(_path.to_string()) {
             Ok(_) => {
                     let mut file = std::fs::File::open(_path).unwrap();
@@ -97,7 +100,7 @@ fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, 
         return string  
     }
 
-    let contents = read_file_to_string(path.path.as_str());
+    let contents = read_file_to_string(&path.path);
     if contents != "error".to_string() {
         let split = contents.split('{');
         let mut raw_notes: Vec<&str> = split.collect();
@@ -245,9 +248,6 @@ fn update_notes(
     window: Res<WindowDescriptor>
 ) {
     
-    //#[cfg(debug_assertions)] 
-    //println!("{}", query.is_empty());
-
     for (_note_type, ent, mut transform, mut visible) in query.iter_mut() {
         transform.translation.x -= 100.0 * timer.delta_seconds() * modifiers.speed as f32;
         if transform.translation.x < -window.width / 2.0 {
@@ -264,6 +264,7 @@ fn input_detection(
     key_input: Res<Input<KeyCode>>, 
     mut left_input: ResMut<InputLeftSide>, 
     mut right_input: ResMut<InputRightSide>
+    
 ) {
     if key_input.just_pressed(KeyCode::D) {
         left_input.input = EnumInput::Ka;
@@ -280,14 +281,14 @@ fn input_detection(
     } else {
         right_input.input = EnumInput::None;
     }
-    #[cfg(debug_assertions)]
-    println!("left: {:?}, right: {:?}", left_input.input, right_input.input);
 }
 
-fn print_notes(mut query: Query<(&mut Transform, &NoteTypeEnum), With<Note>>) {
+fn print_notes(mut query: Query<(&mut Transform, &NoteTypeEnum), With<Note>>, timer: Res<Time>) {
     for (_transform, _note_type) in query.iter_mut() {
-        //#[cfg(debug_assertions)]
-        //println!("x: {}, type: {:?}", _transform.translation.x, _note_type)
+        #[cfg(debug_assertions)]
+        if timer.seconds_since_startup() as u32 % 5 == 0 {
+            println!("x: {}, type: {:?}", _transform.translation.x, _note_type)
+        }
     }
 }
 
@@ -318,7 +319,6 @@ fn main() {
         .insert_resource(InputLeftSide{input: EnumInput::None})
         .insert_resource(InputRightSide{input: EnumInput::None})
         .add_startup_system(setup_camera)
-        .add_startup_system(load_args.before(load_notes_from_file))
         .add_startup_system(load_notes_from_file)
         .add_system(input_detection.before(update_notes))
         .add_system(update_notes)
