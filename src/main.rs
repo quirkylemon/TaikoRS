@@ -6,7 +6,7 @@ const SIZE: f32 = 96.0;
 const NOTE_HEIGHT: u16 = 180;
 const HIT_ZONE_X: f32 = -640.0;
 
-//markers 
+//markers and events
 #[derive(Component)]
 struct Note;
 
@@ -86,7 +86,6 @@ fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, 
     
     fn read_file_to_string(default_path: &str) -> String {
         let mut string = String::new();
-        // I have no idea why this works or what I changed to make it work
         let mut _path = match std::env::args().len() {
             0 => "no path".to_string(),
             1 => "no path".to_string(),
@@ -221,7 +220,7 @@ fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, 
                         SpriteBundle {
                             texture: asset_server.load(&expand(notes.notes[i]).2),
                             transform: Transform::from_xyz(notes.notes[i].x as f32 / 3.0 * SIZE, NOTE_HEIGHT as f32, 0.0),
-                            visibility: Visibility { is_visible: true },
+                            visibility: Visibility { is_visible: false },
                             sprite: Sprite { 
                                 custom_size: match expand(notes.notes[i]).1 {
                                     NoteTypeEnum::KaSmall => Some(Vec2::new(SIZE, SIZE)),
@@ -286,6 +285,7 @@ fn update_notes(
         } else if ((HIT_ZONE_X - hit_window.bad)..(HIT_ZONE_X + hit_window.bad)).contains(&(transform.translation.x)) && input_to_note_type(input_left.input, input_right.input) == *note_type{
             commands.entity(ent).despawn();
         }
+        
     }
 }
 
@@ -322,8 +322,11 @@ fn print_notes(mut query: Query<(&mut Transform, &NoteTypeEnum), With<Note>>, ti
 }
 
 
-fn setup_camera(mut commands: Commands, asset_server: Res<AssetServer>, window: Res<WindowDescriptor>) {
+fn setup_camera(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+}
+
+fn setup_song(mut commands: Commands, asset_server: Res<AssetServer>, window: Res<WindowDescriptor>) {
     commands.spawn_bundle(SpriteBundle {
         texture: asset_server.load("HitZone.png"),
         transform: Transform::from_xyz(-window.width / 3.0, NOTE_HEIGHT as f32, 0.0),
@@ -350,6 +353,7 @@ fn main() {
         .insert_resource(InputRightSide{input: EnumInput::None})
         .add_startup_system(setup_camera)
         .add_startup_system(load_notes_from_file)
+        .add_startup_system(setup_song)
         .add_system(input_detection.before(update_notes))
         .add_system(update_notes)
         .add_system(print_notes)
