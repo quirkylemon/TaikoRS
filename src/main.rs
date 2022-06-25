@@ -1,17 +1,17 @@
 use bevy::prelude::*;
 use std::io::Read;
-use std::env;
 
 const SIZE: f32 = 96.0;
 
-const  NOTE_HEIGHT: u16 = 180;
+const NOTE_HEIGHT: u16 = 180;
+const HIT_ZONE_X: f32 = -640.0;
 
 //markers 
 #[derive(Component)]
 struct Note;
 
 // bevy components
-#[derive(Clone, Copy, Component, Debug)]
+#[derive(Clone, Copy, Component, Debug, PartialEq)]
 enum NoteTypeEnum {
     DonSmall,
     KaSmall,
@@ -19,6 +19,7 @@ enum NoteTypeEnum {
     KaLarge,
     Drumroll(f32),
     Ballon(f32),
+    None,
 }
 
 
@@ -57,7 +58,13 @@ struct Modifiers {
     speed: f32,
 }
 
-#[derive(Debug)]
+struct HitWindow {
+    good: f32,
+    ok: f32,
+    bad: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
 enum EnumInput {
     Don,
     Ka,
@@ -74,7 +81,7 @@ struct InputRightSide {
     input: EnumInput,
 }
 
-// Writing this was one of the worst times I've has while coding, it isnt even good or complex code :(
+// Writing this was one of the worst times I've had while coding, it isnt even good or complex code :(
 fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, path: Res<SongPath>, asset_server: Res<AssetServer>) {
     
     fn read_file_to_string(default_path: &str) -> String {
@@ -243,12 +250,26 @@ fn update_notes(
     mut query: Query<(&NoteTypeEnum, Entity, &mut Transform, &mut Visibility), With<Note>>,
     input_left: Res<InputLeftSide>,
     input_right: Res<InputRightSide>,
+    hit_window: Res<HitWindow>,
     modifiers: Res<Modifiers>,
     timer: Res<Time>, 
     window: Res<WindowDescriptor>
 ) {
-    
-    for (_note_type, ent, mut transform, mut visible) in query.iter_mut() {
+    fn input_to_note_type(input_left: EnumInput, input_right: EnumInput) -> NoteTypeEnum {
+        match (input_left, input_right) {
+            (EnumInput::Don, EnumInput::Don) => NoteTypeEnum::DonLarge,
+            (EnumInput::Ka, EnumInput::Ka) => NoteTypeEnum::KaLarge,
+            (EnumInput::Don, EnumInput::None) => NoteTypeEnum::DonSmall,
+            (EnumInput::None, EnumInput::Don) => NoteTypeEnum::DonSmall,
+            (EnumInput::Ka, EnumInput::None) => NoteTypeEnum::KaSmall,
+            (EnumInput::None, EnumInput::Ka) => NoteTypeEnum::KaSmall,
+            (EnumInput::Don, EnumInput::Ka) => NoteTypeEnum::DonSmall,
+            (EnumInput::Ka, EnumInput::Don) => NoteTypeEnum::KaSmall,
+            (EnumInput::None, EnumInput::None) => NoteTypeEnum::None,
+            
+        }
+    }
+    for (note_type, ent, mut transform, mut visible) in query.iter_mut() {
         transform.translation.x -= 100.0 * timer.delta_seconds() * modifiers.speed as f32;
         if transform.translation.x < -window.width / 2.0 {
             commands.entity(ent).despawn();
@@ -256,6 +277,14 @@ fn update_notes(
             visible.is_visible = false;
         } else {
             visible.is_visible = true;
+        }
+
+        if ((HIT_ZONE_X - hit_window.good)..(HIT_ZONE_X + hit_window.good)).contains(&(transform.translation.x)) && input_to_note_type(input_left.input, input_right.input) == *note_type {
+            commands.entity(ent).despawn();
+        } else if ((HIT_ZONE_X - hit_window.ok)..(HIT_ZONE_X + hit_window.ok)).contains(&(transform.translation.x)) && input_to_note_type(input_left.input, input_right.input) == *note_type {
+            commands.entity(ent).despawn();
+        } else if ((HIT_ZONE_X - hit_window.bad)..(HIT_ZONE_X + hit_window.bad)).contains(&(transform.translation.x)) && input_to_note_type(input_left.input, input_right.input) == *note_type{
+            commands.entity(ent).despawn();
         }
     }
 }
@@ -316,6 +345,7 @@ fn main() {
         .insert_resource(NotesInSong{notes: vec![]})
         .insert_resource(SongPath{path: "TaikoRS/Songs/.Debug/TestSong/".to_string()})
         .insert_resource(Modifiers{speed: 1.0})
+        .insert_resource(HitWindow{good: 15.0, ok: 30.0, bad: 45.0})
         .insert_resource(InputLeftSide{input: EnumInput::None})
         .insert_resource(InputRightSide{input: EnumInput::None})
         .add_startup_system(setup_camera)
