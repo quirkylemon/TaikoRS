@@ -10,6 +10,9 @@ const HIT_ZONE_X: f32 = -640.0;
 #[derive(Component)]
 struct Note;
 
+struct SongStart;
+struct SongEnd;
+
 // bevy components
 #[derive(Clone, Copy, Component, Debug, PartialEq)]
 enum NoteTypeEnum {
@@ -64,6 +67,14 @@ struct HitWindow {
     bad: f32,
 }
 
+#[derive(Debug)]
+struct Score {
+    score: u16,
+    goods: u32,
+    oks: u32,
+    bads: u32,
+}
+
 #[derive(Debug, Clone, Copy)]
 enum EnumInput {
     Don,
@@ -80,6 +91,26 @@ struct InputLeftSide {
 struct InputRightSide {
     input: EnumInput,
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+enum MenuState {
+    MainMenu,
+    OptionsMenu,
+    PauseMenu,
+    SongSelectMenu,
+    EditorMenu,
+    Playing,
+    None,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+enum PlayState {
+    EditorTestMode,
+    PlayMode,
+    TrainingMode,
+    Paused,
+}
+
 
 // Writing this was one of the worst times I've had while coding, it isnt even good or complex code :(
 fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, path: Res<SongPath>, asset_server: Res<AssetServer>) {
@@ -250,6 +281,7 @@ fn update_notes(
     input_left: Res<InputLeftSide>,
     input_right: Res<InputRightSide>,
     hit_window: Res<HitWindow>,
+    mut score: ResMut<Score>,
     modifiers: Res<Modifiers>,
     timer: Res<Time>, 
     window: Res<WindowDescriptor>
@@ -271,6 +303,7 @@ fn update_notes(
     for (note_type, ent, mut transform, mut visible) in query.iter_mut() {
         transform.translation.x -= 100.0 * timer.delta_seconds() * modifiers.speed as f32;
         if transform.translation.x < -window.width / 2.0 {
+            score.bads += 1;
             commands.entity(ent).despawn();
         } else if transform.translation.x > window.width + 200.0 {
             visible.is_visible = false;
@@ -279,13 +312,19 @@ fn update_notes(
         }
 
         if ((HIT_ZONE_X - hit_window.good)..(HIT_ZONE_X + hit_window.good)).contains(&(transform.translation.x)) && input_to_note_type(input_left.input, input_right.input) == *note_type {
+            score.goods += 1;
+            // placeholder value
+            score.score += 100;
             commands.entity(ent).despawn();
         } else if ((HIT_ZONE_X - hit_window.ok)..(HIT_ZONE_X + hit_window.ok)).contains(&(transform.translation.x)) && input_to_note_type(input_left.input, input_right.input) == *note_type {
+            score.oks += 1;
+            // placeholder value
+            score.score += 50;
             commands.entity(ent).despawn();
         } else if ((HIT_ZONE_X - hit_window.bad)..(HIT_ZONE_X + hit_window.bad)).contains(&(transform.translation.x)) && input_to_note_type(input_left.input, input_right.input) == *note_type{
+            score.bads += 1;
             commands.entity(ent).despawn();
         }
-        
     }
 }
 
@@ -333,6 +372,7 @@ fn setup_song(mut commands: Commands, asset_server: Res<AssetServer>, window: Re
         sprite: Sprite { custom_size: Some(Vec2::new(SIZE * 1.1, SIZE * 1.1)), ..default()},
         ..default()
     });
+    
 }
 
 fn main() {
@@ -345,17 +385,28 @@ fn main() {
             ..default()
         })
         .add_plugins(DefaultPlugins)
+        .add_state(MenuState::Playing)
+        .add_state(PlayState::PlayMode)
+        .add_event::<SongStart>()
+        .add_event::<SongEnd>()
         .insert_resource(NotesInSong{notes: vec![]})
         .insert_resource(SongPath{path: "TaikoRS/Songs/.Debug/TestSong/".to_string()})
         .insert_resource(Modifiers{speed: 1.0})
         .insert_resource(HitWindow{good: 15.0, ok: 30.0, bad: 45.0})
+        .insert_resource(Score{score: 0, goods: 0, oks: 0, bads: 0})
         .insert_resource(InputLeftSide{input: EnumInput::None})
         .insert_resource(InputRightSide{input: EnumInput::None})
         .add_startup_system(setup_camera)
         .add_startup_system(load_notes_from_file)
-        .add_startup_system(setup_song)
-        .add_system(input_detection.before(update_notes))
-        .add_system(update_notes)
-        .add_system(print_notes)
+        .add_system_set(
+            SystemSet::on_enter(PlayState::PlayMode)
+                .with_system(setup_song)
+        )
+        .add_system_set(
+            SystemSet::on_update(PlayState::PlayMode)
+                .with_system(input_detection.before(update_notes))
+                .with_system(update_notes)
+                .with_system(print_notes)
+        )
         .run();
 }
