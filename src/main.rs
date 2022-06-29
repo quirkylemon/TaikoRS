@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use std::io::Read;
-
+use bevy::window::WindowFocused;
 const SIZE: f32 = 96.0;
 
 const NOTE_HEIGHT: u16 = 180;
@@ -111,6 +111,9 @@ enum PlayState {
     Paused,
 }
 
+struct PreviousPlayState {
+    state: PlayState,
+}
 
 // Writing this was one of the worst times I've had while coding, it isnt even good or complex code :(
 fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, path: Res<SongPath>, asset_server: Res<AssetServer>) {
@@ -300,33 +303,33 @@ fn update_notes(
             
         }
     }
-    for (note_type, ent, mut transform, mut visible) in query.iter_mut() {
-        transform.translation.x -= 100.0 * timer.delta_seconds() * modifiers.speed as f32;
-        if transform.translation.x < -window.width / 2.0 {
-            score.bads += 1;
-            commands.entity(ent).despawn();
-        } else if transform.translation.x > window.width + 200.0 {
-            visible.is_visible = false;
-        } else {
-            visible.is_visible = true;
+        for (note_type, ent, mut transform, mut visible) in query.iter_mut() {
+            transform.translation.x -= 100.0 * timer.delta_seconds() * modifiers.speed as f32;
+            if transform.translation.x < -window.width / 2.0 {
+                score.bads += 1;
+                commands.entity(ent).despawn();
+            } else if transform.translation.x > window.width + 200.0 {
+                visible.is_visible = false;
+            } else {
+                visible.is_visible = true;
+            }
+        
+            if ((HIT_ZONE_X - hit_window.good)..(HIT_ZONE_X + hit_window.good)).contains(&(transform.translation.x)) && input_to_note_type(input_left.input, input_right.input) == *note_type {
+                score.goods += 1;
+                // placeholder value
+                score.score += 100;
+                commands.entity(ent).despawn();
+            } else if ((HIT_ZONE_X - hit_window.ok)..(HIT_ZONE_X + hit_window.ok)).contains(&(transform.translation.x)) && input_to_note_type(input_left.input, input_right.input) == *note_type {
+                score.oks += 1;
+                // placeholder value
+                score.score += 50;
+                commands.entity(ent).despawn();
+            } else if ((HIT_ZONE_X - hit_window.bad)..(HIT_ZONE_X + hit_window.bad)).contains(&(transform.translation.x)) && input_to_note_type(input_left.input, input_right.input) == *note_type{
+                score.bads += 1;
+                commands.entity(ent).despawn();
+            }
         }
-
-        if ((HIT_ZONE_X - hit_window.good)..(HIT_ZONE_X + hit_window.good)).contains(&(transform.translation.x)) && input_to_note_type(input_left.input, input_right.input) == *note_type {
-            score.goods += 1;
-            // placeholder value
-            score.score += 100;
-            commands.entity(ent).despawn();
-        } else if ((HIT_ZONE_X - hit_window.ok)..(HIT_ZONE_X + hit_window.ok)).contains(&(transform.translation.x)) && input_to_note_type(input_left.input, input_right.input) == *note_type {
-            score.oks += 1;
-            // placeholder value
-            score.score += 50;
-            commands.entity(ent).despawn();
-        } else if ((HIT_ZONE_X - hit_window.bad)..(HIT_ZONE_X + hit_window.bad)).contains(&(transform.translation.x)) && input_to_note_type(input_left.input, input_right.input) == *note_type{
-            score.bads += 1;
-            commands.entity(ent).despawn();
-        }
-    }
-}
+    }   
 
 fn input_detection(
     key_input: Res<Input<KeyCode>>, 
@@ -360,7 +363,6 @@ fn print_notes(mut query: Query<(&mut Transform, &NoteTypeEnum), With<Note>>, ti
     }
 }
 
-
 fn setup_camera(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 }
@@ -375,6 +377,27 @@ fn setup_song(mut commands: Commands, asset_server: Res<AssetServer>, window: Re
     
 }
 
+fn pause_when_out_of_focus(mut play_state: ResMut<State<PlayState>>, mut previous_state: ResMut<PreviousPlayState>, mut focused_evr: EventReader<WindowFocused>) {
+    for i in focused_evr.iter() {
+        if i.focused == false {
+            match *play_state.current() {
+                PlayState::Paused => {},
+                _ => {previous_state.state = *play_state.current(); play_state.overwrite_set(PlayState::Paused).unwrap();},
+            }
+        } else {
+            match *play_state.current() {
+                PlayState::Paused => {
+                    match play_state.overwrite_set(previous_state.state) {
+                        Ok(_) => {play_state.overwrite_set(previous_state.state).unwrap(); previous_state.state = PlayState::Paused;},
+                        Err(e) => println!("{}", e),
+                    }
+                },
+                _ => {},
+            }
+        }
+    }
+} 
+
 fn main() {
     App::new()
         .insert_resource(WindowDescriptor {
@@ -386,7 +409,8 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_state(MenuState::Playing)
-        .add_state(PlayState::PlayMode)
+        .add_state(PlayState::Paused)
+        .add_event::<WindowFocused>()
         .add_event::<SongStart>()
         .add_event::<SongEnd>()
         .insert_resource(NotesInSong{notes: vec![]})
@@ -396,14 +420,28 @@ fn main() {
         .insert_resource(Score{score: 0, goods: 0, oks: 0, bads: 0})
         .insert_resource(InputLeftSide{input: EnumInput::None})
         .insert_resource(InputRightSide{input: EnumInput::None})
+        .insert_resource(PreviousPlayState{state: PlayState::PlayMode})
         .add_startup_system(setup_camera)
         .add_startup_system(load_notes_from_file)
+        .add_system(pause_when_out_of_focus)
         .add_system_set(
             SystemSet::on_enter(PlayState::PlayMode)
                 .with_system(setup_song)
         )
         .add_system_set(
             SystemSet::on_update(PlayState::PlayMode)
+                .with_system(input_detection.before(update_notes))
+                .with_system(update_notes)
+                .with_system(print_notes)
+        )
+        .add_system_set(
+            SystemSet::on_update(PlayState::EditorTestMode)
+                .with_system(input_detection.before(update_notes))
+                .with_system(update_notes)
+                .with_system(print_notes)
+        )
+        .add_system_set(
+            SystemSet::on_update(PlayState::TrainingMode)
                 .with_system(input_detection.before(update_notes))
                 .with_system(update_notes)
                 .with_system(print_notes)
