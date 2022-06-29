@@ -1,5 +1,11 @@
 # Taiko sim RS 
 
+why: 
+1. there isnt a dedicated Taiko sim on linux, currently the only option is Osu Lazer.
+2. bevy engine is very modular hopefully this will allow user to edit the game easier.
+3. rust and bevy engine are fun.
+ 
+
 ## This is a work in progress there is no functonality and the only map that will load is the debuging/testing map
 
 ### Install instruction 
