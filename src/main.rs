@@ -1,14 +1,19 @@
 use bevy::prelude::*;
 use std::io::Read;
+use std::fs;
 use bevy::window::WindowFocused;
-const SIZE: f32 = 96.0;
 
-const NOTE_HEIGHT: u16 = 180;
+const SIZE: f32 = 96.0;
+const NOTE_HEIGHT: f32 = 180.0;
 const HIT_ZONE_X: f32 = -640.0;
+const ASSETS_ROOT: &str = "./TaikoRS/";
 
 //markers and events
 #[derive(Component)]
 struct Note;
+
+#[derive(Component)]
+struct HitZone;
 
 struct SongStart;
 struct SongEnd;
@@ -215,8 +220,9 @@ fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, 
         }
         invalid_notes = invalid_notes.into_iter().map(|i| i + 1).collect();
         #[cfg(debug_assertions)] {
-            println!("{}", notes.notes.len());   
-            println!("{:?}", invalid_notes);
+            if invalid_notes.len() > 0 {
+                println!("{:?}", invalid_notes);
+            }  
         }
 
         fn expand(note: NoteOptimized) -> (Transform, NoteTypeEnum, String) {
@@ -354,14 +360,6 @@ fn input_detection(
     }
 }
 
-fn print_notes(mut query: Query<(&mut Transform, &NoteTypeEnum), With<Note>>, timer: Res<Time>) {
-    for (_transform, _note_type) in query.iter_mut() {
-        #[cfg(debug_assertions)]
-        if timer.seconds_since_startup() as u32 % 5 == 0 {
-            println!("x: {}, type: {:?}", _transform.translation.x, _note_type)
-        }
-    }
-}
 
 fn setup_camera(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
@@ -373,7 +371,7 @@ fn setup_song(mut commands: Commands, asset_server: Res<AssetServer>, window: Re
         transform: Transform::from_xyz(-window.width / 3.0, NOTE_HEIGHT as f32, 0.0),
         sprite: Sprite { custom_size: Some(Vec2::new(SIZE * 1.1, SIZE * 1.1)), ..default()},
         ..default()
-    });
+    }).insert(HitZone); 
     
 }
 
@@ -397,6 +395,15 @@ fn pause_when_out_of_focus(mut play_state: ResMut<State<PlayState>>, mut previou
         }
     }
 } 
+
+fn print_avaible_songs() {
+    for folder in fs::read_dir(ASSETS_ROOT.to_string() + "Songs/").unwrap() {
+        println!("{}", folder.as_ref().unwrap().path().display());
+        for i in fs::read_dir(folder.as_ref().unwrap().path()).unwrap() {
+            println!("   {}", i.unwrap().path().display());
+        }
+    }
+}
 
 fn main() {
     App::new()
@@ -423,28 +430,34 @@ fn main() {
         .insert_resource(PreviousPlayState{state: PlayState::PlayMode})
         .add_startup_system(setup_camera)
         .add_startup_system(load_notes_from_file)
+        .add_startup_system(print_avaible_songs)
         .add_system(pause_when_out_of_focus)
         .add_system_set(
             SystemSet::on_enter(PlayState::PlayMode)
                 .with_system(setup_song)
         )
         .add_system_set(
+            SystemSet::on_enter(PlayState::EditorTestMode)
+                .with_system(setup_song)
+        )
+        .add_system_set(
+            SystemSet::on_enter(PlayState::TrainingMode)
+                .with_system(setup_song)
+        )
+        .add_system_set(
             SystemSet::on_update(PlayState::PlayMode)
                 .with_system(input_detection.before(update_notes))
                 .with_system(update_notes)
-                .with_system(print_notes)
         )
         .add_system_set(
             SystemSet::on_update(PlayState::EditorTestMode)
                 .with_system(input_detection.before(update_notes))
                 .with_system(update_notes)
-                .with_system(print_notes)
         )
         .add_system_set(
             SystemSet::on_update(PlayState::TrainingMode)
                 .with_system(input_detection.before(update_notes))
                 .with_system(update_notes)
-                .with_system(print_notes)
         )
         .run();
 }
