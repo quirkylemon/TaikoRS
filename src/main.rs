@@ -8,12 +8,28 @@ const NOTE_HEIGHT: f32 = 180.0;
 const HIT_ZONE_X: f32 = -640.0;
 const ASSETS_ROOT: &str = "./TaikoRS/";
 
+const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
+const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
+const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
+
 //markers and events
 #[derive(Component)]
 struct Note;
 
 #[derive(Component)]
 struct HitZone;
+
+#[derive(Component)]
+struct PauseMenuButton;
+
+#[derive(Component)]
+struct ResumeButton;
+
+#[derive(Component)]
+struct OptionsButton;
+
+#[derive(Component)]
+struct ExitButton;
 
 struct SongStart;
 struct SongEnd;
@@ -101,11 +117,14 @@ struct InputRightSide {
 enum MenuState {
     MainMenu,
     OptionsMenu,
-    PauseMenu,
     SongSelectMenu,
     EditorMenu,
     Playing,
     None,
+}
+
+struct PreviousMenuState {
+    state: MenuState,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -140,7 +159,7 @@ fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, 
                     let mut file = std::fs::File::open(_path).unwrap();
                     file.read_to_string(&mut string).unwrap();
                 },
-            Err(e) => {println!("error opening file: error {}", e); string = "error".to_string();}
+            Err(e) => {log_error(format!("error opening file: error {}", e)); string = "error".to_string();}
         }      
         return string  
     }
@@ -221,7 +240,7 @@ fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, 
         invalid_notes = invalid_notes.into_iter().map(|i| i + 1).collect();
         #[cfg(debug_assertions)] {
             if invalid_notes.len() > 0 {
-                println!("{:?}", invalid_notes);
+                log_error(invalid_notes)
             }  
         }
 
@@ -236,11 +255,11 @@ fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, 
             };
 
             let _sprite = match _note_type {
-                NoteTypeEnum::KaSmall => "Ka.png",
-                NoteTypeEnum::DonSmall => "Don.png",
-                NoteTypeEnum::DonLarge => "Don.png",
-                NoteTypeEnum::KaLarge => "Ka.png",
-                _ => "Don.png"
+                NoteTypeEnum::KaSmall => "Sprites/Ka.png",
+                NoteTypeEnum::DonSmall => "Sprites/Don.png",
+                NoteTypeEnum::DonLarge => "Sprites/Don.png",
+                NoteTypeEnum::KaLarge => "Sprites/Ka.png",
+                _ => "Sprites/Don.png"
             };
 
             let _position = Transform::from_xyz(note.x as f32 / 3.0, 0.0, 0.0);
@@ -278,11 +297,180 @@ fn load_notes_from_file(mut commands: Commands, mut notes: ResMut<NotesInSong>, 
             }
         }
     } else {
-        println!("error opening map please check if file exists");
+        log_error("error opening map please check if file exists");
     }
     
 }
 
+fn pause_menu_button_system(mut interaction_query: Query<(
+    &Interaction,
+    &mut UiColor,), 
+    (Changed<Interaction>, With<Button>)>,
+    )
+    {
+    for (interaction, mut color) in interaction_query.iter_mut() {
+
+        match *interaction {
+            Interaction::Clicked => {
+                *color = PRESSED_BUTTON.into();
+            }
+
+            Interaction::Hovered => {
+                *color = HOVERED_BUTTON.into();
+            }
+
+            Interaction::None => {
+                *color = NORMAL_BUTTON.into();
+            }
+        }
+    }
+}
+
+
+fn setup_pause_menu_button(mut commands: Commands, asset_server: Res<AssetServer>) {
+    // I am very sorry to anyone who has done UI/GUI before. This is my first time so I don't know if this is really wonky.
+    // Please feel free to change it.
+    commands.spawn_bundle(UiCameraBundle::default());
+    // Resume button
+    commands.spawn_bundle(ButtonBundle {
+        style: Style { 
+            size: Size::new(Val::Px(300.0), Val::Px(97.5)),
+            margin: Rect::all(Val::Auto),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            position: Rect { left: Val::Percent(40.0), right: Val::Percent(0.0), top: Val::Percent(0.0), bottom: Val::Percent(65.0) },
+            position_type: PositionType::Absolute,
+            ..default()
+        },
+        color: NORMAL_BUTTON.into(),
+        ..default()
+    })
+    .insert(PauseMenuButton)
+    .insert(ResumeButton)
+    .with_children(|parent| {
+        parent.spawn_bundle(TextBundle {
+            text: Text::with_section(
+                "Resume", 
+                TextStyle {
+                    font: asset_server.load("Fonts/Modified-DFPKanteiryu-XB.ttf"),
+                    font_size: 40.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                },
+                Default::default()
+            ),
+            ..default()
+        })
+        .insert(PauseMenuButton)
+        .insert(ResumeButton);
+    });
+
+    // Options button
+    commands.spawn_bundle(ButtonBundle {
+        style: Style { 
+            size: Size::new(Val::Px(300.0), Val::Px(97.5)),
+            margin: Rect::all(Val::Auto),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            position: Rect { left: Val::Percent(40.0), right: Val::Percent(0.0), top: Val::Percent(0.0), bottom: Val::Percent(50.0) },
+            position_type: PositionType::Absolute,
+            ..default()
+        },
+        color: NORMAL_BUTTON.into(),
+        ..default()
+    })
+    .insert(PauseMenuButton)
+    .insert(OptionsButton)
+    .with_children(|parent| {
+        parent.spawn_bundle(TextBundle {
+            text: Text::with_section(
+                "Options", 
+                TextStyle {
+                    font: asset_server.load("Fonts/Modified-DFPKanteiryu-XB.ttf"),
+                    font_size: 40.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                },
+                Default::default()
+            ),
+            ..default()
+        })
+        .insert(PauseMenuButton)
+        .insert(OptionsButton);
+    });
+
+    // Exit button
+    commands.spawn_bundle(ButtonBundle {
+        style: Style { 
+            size: Size::new(Val::Px(300.0), Val::Px(97.5)),
+            margin: Rect::all(Val::Auto),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            position: Rect { left: Val::Percent(40.0), right: Val::Percent(0.0), top: Val::Percent(0.0), bottom: Val::Percent(35.0) },
+            position_type: PositionType::Absolute,
+            ..default()
+        },
+        color: NORMAL_BUTTON.into(),
+        ..default()
+    })
+    .insert(PauseMenuButton)
+    .insert(ExitButton)
+    .with_children(|parent| {
+        parent.spawn_bundle(TextBundle {
+            text: Text::with_section(
+                "Exit", 
+                TextStyle {
+                    font: asset_server.load("Fonts/Modified-DFPKanteiryu-XB.ttf"),
+                    font_size: 40.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                },
+                Default::default()
+            ),
+            ..default()
+        })
+        .insert(PauseMenuButton)
+        .insert(ExitButton);
+    });
+}
+
+fn pause_menu_buttons(
+    key_input: Res<Input<KeyCode>>,
+    mut play_state: ResMut<State<PlayState>>, 
+    mut previous_play_state: ResMut<PreviousPlayState>
+) {
+   if key_input.any_just_pressed([KeyCode::Escape]) == true {
+        if *play_state.current() != PlayState::Paused {
+            match play_state.overwrite_set(PlayState::Paused) {
+                Ok(_) => {
+                    previous_play_state.state = *play_state.current();
+                    play_state.overwrite_set(PlayState::Paused).unwrap();
+                },
+                Err(e) => {log_error(e);},
+            }
+        } else if *play_state.current() == PlayState::Paused {
+            match play_state.overwrite_set(previous_play_state.state) {
+                Ok(_) => {
+                    play_state.overwrite_set(previous_play_state.state).unwrap();
+                    previous_play_state.state = *play_state.current();
+                },
+                Err(e) => log_error(e),
+            }
+        }
+   }
+}
+
+fn pause_menu_visibilty(mut button_query: Query<&mut Visibility, With<PauseMenuButton>>, play_state: ResMut<State<PlayState>>) {
+    for mut visibility in button_query.iter_mut() {
+        //text doesnt turn invisible
+        if *play_state.current() != PlayState::Paused {
+            visibility.is_visible = false;
+        } else {
+            visibility.is_visible = true;
+        }
+    } 
+}
+
+fn log_error<T: std::fmt::Debug>(error: T) {
+    println!("{:?}", error)
+}
 
 fn update_notes(
     mut commands: Commands,
@@ -367,7 +555,7 @@ fn setup_camera(mut commands: Commands) {
 
 fn setup_song(mut commands: Commands, asset_server: Res<AssetServer>, window: Res<WindowDescriptor>) {
     commands.spawn_bundle(SpriteBundle {
-        texture: asset_server.load("HitZone.png"),
+        texture: asset_server.load("Sprites/HitZone.png"),
         transform: Transform::from_xyz(-window.width / 3.0, NOTE_HEIGHT as f32, 0.0),
         sprite: Sprite { custom_size: Some(Vec2::new(SIZE * 1.1, SIZE * 1.1)), ..default()},
         ..default()
@@ -387,7 +575,7 @@ fn pause_when_out_of_focus(mut play_state: ResMut<State<PlayState>>, mut previou
                 PlayState::Paused => {
                     match play_state.overwrite_set(previous_state.state) {
                         Ok(_) => {play_state.overwrite_set(previous_state.state).unwrap(); previous_state.state = PlayState::Paused;},
-                        Err(e) => println!("{}", e),
+                        Err(e) => log_error(e)
                     }
                 },
                 _ => {},
@@ -428,36 +616,46 @@ fn main() {
         .insert_resource(InputLeftSide{input: EnumInput::None})
         .insert_resource(InputRightSide{input: EnumInput::None})
         .insert_resource(PreviousPlayState{state: PlayState::PlayMode})
+        .insert_resource(PreviousMenuState{state: MenuState::Playing})
         .add_startup_system(setup_camera)
         .add_startup_system(load_notes_from_file)
         .add_startup_system(print_avaible_songs)
-        .add_system(pause_when_out_of_focus)
+        .add_startup_system(setup_pause_menu_button)
+        .add_system(pause_menu_button_system)
+        .add_system(pause_menu_buttons)
         .add_system_set(
             SystemSet::on_enter(PlayState::PlayMode)
-                .with_system(setup_song)
-        )
-        .add_system_set(
-            SystemSet::on_enter(PlayState::EditorTestMode)
-                .with_system(setup_song)
-        )
-        .add_system_set(
-            SystemSet::on_enter(PlayState::TrainingMode)
                 .with_system(setup_song)
         )
         .add_system_set(
             SystemSet::on_update(PlayState::PlayMode)
                 .with_system(input_detection.before(update_notes))
                 .with_system(update_notes)
+                .with_system(pause_when_out_of_focus)
+        )
+        .add_system_set(
+            SystemSet::on_enter(PlayState::EditorTestMode)
+                .with_system(setup_song)
         )
         .add_system_set(
             SystemSet::on_update(PlayState::EditorTestMode)
                 .with_system(input_detection.before(update_notes))
                 .with_system(update_notes)
+                .with_system(pause_when_out_of_focus)
+        )
+        .add_system_set(
+            SystemSet::on_enter(PlayState::TrainingMode)
+                .with_system(setup_song)
         )
         .add_system_set(
             SystemSet::on_update(PlayState::TrainingMode)
                 .with_system(input_detection.before(update_notes))
                 .with_system(update_notes)
+                .with_system(pause_when_out_of_focus)
+        )
+        .add_system_set(
+            SystemSet::on_update(MenuState::Playing)
+                .with_system(pause_menu_visibilty.after(pause_menu_buttons))
         )
         .run();
 }
